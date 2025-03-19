@@ -2,14 +2,13 @@
 #include <PubSubClient.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_SSD1351.h>  // Remplace Adafruit_SSD1306 par Adafruit_SSD1351
 #include "image_bitmap.h"
 
 #define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+#define SCREEN_HEIGHT 128  // Taille de l'écran SSD1351
 #define OLED_RESET    -1  
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
+Adafruit_SSD1351 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // **Configuration WiFi**
 const char* ssid = "iPhonenono";    
@@ -31,6 +30,11 @@ struct Tamagotchi {
 
     void play() {
         happiness = min(100, hunger + 10);  // Diminuer le bonheur, jusqu'à 0 (triste)
+
+        if (random(3) == 0) {
+            if (random(2) == 0) hunger = max(0, hunger - 5); // 1 chance sur 3 de perdre 5 de faim
+            if (random(2) == 0) cleanliness = max(0, cleanliness - 5); // 1 chance sur 3 de perdre 5 de propreté
+        }
     }
 
     void clean() {
@@ -43,11 +47,14 @@ Tamagotchi myTamagotchi = {0, 100, 100};  // Par défaut, le Tamagotchi est trè
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+unsigned long previousMillis = 0;
+const long interval = 120000; // 2 minutes (120000 ms)
+
 // Déclaration de la fonction updateDisplay
 void updateDisplay(String text) {
     display.clearDisplay();
     display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
+    display.setTextColor(SSD1351_WHITE);  // Utilise SSD1351_WHITE
     display.setCursor(0, 0);
     display.println(text);
     display.display();
@@ -123,13 +130,22 @@ void setup() {
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
     
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    if (!display.begin(SSD1351_COLOR, SCREEN_WIDTH, SCREEN_HEIGHT, OLED_RESET)) {  // Initialisation SSD1351
         Serial.println(F("Échec de l'initialisation de l'OLED"));
         for (;;);
     }
 
+    // Test d'affichage
     display.clearDisplay();
-    display.drawBitmap(0, 0, image_data, 128, 64, 1); // Affichage de l'image
+    display.setTextSize(1);
+    display.setTextColor(SSD1351_WHITE);  // Utilise SSD1351_WHITE
+    display.setCursor(0, 0);
+    display.println("Tamago test");
+    display.display();
+    delay(2000);  // Attente de 2 secondes
+
+    display.clearDisplay();
+    display.drawBitmap(0, 0, image_data, 128, 128, 1);  // Affichage de l'image sur SSD1351
     display.display();
 }
 
