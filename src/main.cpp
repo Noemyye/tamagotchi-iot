@@ -3,31 +3,39 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
-#include "image_bitmap.h"
+#include "Image.h"
+#include <SPI.h>
 
+// Screen dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 128
-#define OLED_RESET -1
-#define OLED_DC    26    // Data/Command pin
-#define OLED_CS    27    // Chip select pin
-#define OLED_MOSI  23    // SPI MOSI pin
-#define OLED_SCLK  18    // SPI Clock pin
 
-// SPI Settings
-#define SPI_SPEED 8000000  // 8MHz
+// Pin definitions for software SPI
+#define OLED_MOSI  23    // Data out (MOSI) pin
+#define OLED_SCLK  18    // Clock (SCK) pin
+#define OLED_CS    27    // Chip select pin
+#define OLED_DC    26    // Data/Command pin
+#define OLED_RST   14    // Reset pin - using GPIO14 instead of -1
 
 // Color definitions
-#define BLACK           0x0000
-#define BLUE            0x001F
-#define RED             0xF800
-#define GREEN           0x07E0
-#define CYAN            0x07FF
-#define MAGENTA         0xF81F
-#define YELLOW          0xFFE0
-#define WHITE           0xFFFF
+#define BLACK    0x0000
+#define BLUE     0x001F
+#define RED      0xF800
+#define GREEN    0x07E0
+#define CYAN     0x07FF
+#define MAGENTA  0xF81F
+#define YELLOW   0xFFE0
+#define WHITE    0xFFFF
 
-Adafruit_SSD1351 display = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, OLED_CS, OLED_DC, OLED_RESET);
-
+// Create the OLED display object with software SPI
+Adafruit_SSD1351 display = Adafruit_SSD1351(
+    SCREEN_WIDTH, SCREEN_HEIGHT,
+    OLED_CS,
+    OLED_DC,
+    OLED_MOSI,
+    OLED_SCLK,
+    OLED_RST
+);
 
 // **Configuration WiFi**
 const char* ssid = "iPhonenono";    
@@ -48,7 +56,7 @@ struct Tamagotchi {
     }
 
     void play() {
-        happiness = min(100, hunger + 10);  
+        happiness = min(100, happiness + 10);  
 
         if (random(3) == 0) {
             if (random(2) == 0) hunger = max(0, hunger - 5); // 1 chance sur 3 de perdre 5 de faim
@@ -57,7 +65,7 @@ struct Tamagotchi {
     }
 
     void clean() {
-        cleanliness = min(100, hunger + 10);  // Diminuer la propreté, jusqu'à 0 (sale)
+        cleanliness = min(100, cleanliness + 10);  // Diminuer la propreté, jusqu'à 0 (sale)
     }
 };
 
@@ -70,40 +78,74 @@ unsigned long previousMillis = 0;
 const long interval = 120000; // 2 minutes (120000 ms)
 
 void updateDisplay(String text) {
-    static unsigned long lastUpdate = 0;
-    unsigned long currentMillis = millis();
+    static int lastHunger = -1;
+    static int lastHappiness = -1;
+    static int lastCleanliness = -1;
     
-    // Slower refresh rate - update every 2 seconds
-    if (currentMillis - lastUpdate < 2000) {
+    // Only update if values have changed
+    if (myTamagotchi.hunger == lastHunger && 
+        myTamagotchi.happiness == lastHappiness && 
+        myTamagotchi.cleanliness == lastCleanliness) {
         return;
     }
-    lastUpdate = currentMillis;
     
-    // Simple black background
-    display.fillScreen(BLACK);
+    // Save current values
+    lastHunger = myTamagotchi.hunger;
+    lastHappiness = myTamagotchi.happiness;
+    lastCleanliness = myTamagotchi.cleanliness;
     
-    // Simple white text, larger size for better readability
-    display.setTextSize(1.8);
-    display.setTextColor(WHITE);
+    // Clear previous text areas with black rectangles
+    display.fillRect(14, 4, 25, 7, BLACK);    // Clear hunger area
+    display.fillRect(58, 4, 25, 7, BLACK);    // Clear happiness area
+    display.fillRect(101, 4, 25, 7, BLACK);    // Clear cleanliness area
     
-    // Center the text vertically
-    int y = 20;
-    int lineHeight = 25;  // More space between lines
+    // Set text properties
+    display.setTextSize(1);
+    display.setTextWrap(false);
     
-    // Split and display text
-    String line;
-    int pos = 0;
-    while ((pos = text.indexOf('\n')) != -1) {
-        line = text.substring(0, pos);
-        display.setCursor(5, y);
-        display.println(line);
-        text = text.substring(pos + 1);
-        y += lineHeight;
+    // Draw Hunger (left)
+    display.setTextColor(RED);
+    display.setCursor(15, 4);
+    display.print(myTamagotchi.hunger);
+    display.print("%");
+    
+    // Draw Happiness (center)
+    display.setTextColor(YELLOW);
+    display.setCursor(59, 4);
+    display.print(myTamagotchi.happiness);
+    display.print("%");
+    
+    // Draw Cleanliness (right)
+    display.setTextColor(CYAN);
+    display.setCursor(102, 4);
+    display.print(myTamagotchi.cleanliness);
+    display.print("%");
+}
+
+void drawImage() {
+    Serial.println("Starting image draw...");
+    
+    // Verify image data
+    if (Image.data == nullptr) {
+        Serial.println("Error: Image data is null!");
+        return;
     }
     
-    // Last line
-    display.setCursor(5, y);
-    display.println(text);
+    if (Image.width != SCREEN_WIDTH || Image.height != SCREEN_HEIGHT) {
+        Serial.println("Error: Image dimensions don't match screen!");
+        Serial.print("Image: "); Serial.print(Image.width); Serial.print("x"); Serial.println(Image.height);
+        Serial.print("Screen: "); Serial.print(SCREEN_WIDTH); Serial.print("x"); Serial.println(SCREEN_HEIGHT);
+        return;
+    }
+    
+    // Clear screen before drawing
+    display.fillScreen(BLACK);
+    delay(50);  // Short delay to ensure screen is cleared
+    
+    // Draw the image
+    Serial.println("Drawing image to display...");
+    display.drawRGBBitmap(0, 0, Image.data, Image.width, Image.height);
+    Serial.println("Image draw complete");
 }
 
 // **Connexion au WiFi**
@@ -130,41 +172,49 @@ void setup_wifi() {
 
 // **Callback MQTT**
 void callback(char* topic, byte* payload, unsigned int length) {
-    Serial.print("Message reçu : ");
+    Serial.print("MQTT Message received on topic: ");
+    Serial.println(topic);
+    
     String message;
     for (int i = 0; i < length; i++) {
         message += (char)payload[i];
     }
+    Serial.print("Message content: ");
     Serial.println(message);
 
     if (message == "nourrir") {
+        Serial.println("Feeding command received");
         myTamagotchi.feed();
-        updateDisplay("Faim: " + String(myTamagotchi.hunger));
-        Serial.println("Faim: " + String(myTamagotchi.hunger));
+        updateDisplay("");  // Update display with new values
     } else if (message == "jouer") {
+        Serial.println("Play command received");
         myTamagotchi.play();
-        updateDisplay("Bonheur: " + String(myTamagotchi.happiness));
-        Serial.println("Bonheur: " + String(myTamagotchi.happiness));
+        updateDisplay("");  // Update display with new values
     } else if (message == "nettoyer") {
+        Serial.println("Clean command received");
         myTamagotchi.clean();
-        updateDisplay("Propreté: " + String(myTamagotchi.cleanliness));
-        Serial.println("Propreté: " + String(myTamagotchi.cleanliness));
+        updateDisplay("");  // Update display with new values
+    } else {
+        Serial.println("Unknown command received");
     }
 }
 
 // **Connexion MQTT avec délai**
 void reconnect() {
-    while (!client.connected()) {
-        Serial.print("Connexion MQTT...");
+    int attempts = 0;
+    while (!client.connected() && attempts < 3) { // Limit reconnection attempts
+        Serial.print("Attempting MQTT connection...");
         String clientId = "ESP32_" + String(random(1000, 9999));
         if (client.connect(clientId.c_str())) {
-            Serial.println(" Connecté !");
+            Serial.println("connected");
             client.subscribe(mqtt_topic);
-            client.publish("esp32/status", "ESP32 connecté !");
+            client.publish("esp32/status", "ESP32 connected!");
+            Serial.println("Subscribed to topic: " + String(mqtt_topic));
         } else {
-            Serial.print("Échec, code erreur: ");
-            Serial.println(client.state());
-            Serial.println("Nouvelle tentative dans 5 secondes...");
+            Serial.print("failed, rc=");
+            Serial.print(client.state());
+            Serial.println(" retrying in 5 seconds");
+            attempts++;
             delay(5000);
         }
     }
@@ -172,32 +222,58 @@ void reconnect() {
 
 void setup() {
     Serial.begin(115200);
-    
-    // Initialize SPI with slower speed for stability
-    SPI.begin(OLED_SCLK, -1, OLED_MOSI, OLED_CS);
-    SPI.setFrequency(4000000);  // Reduced to 4MHz
-    SPI.setDataMode(SPI_MODE0);
-    SPI.setBitOrder(MSBFIRST);
-    
+    delay(1000);
+    Serial.println("Starting setup...");
+
+    // Configure all pins
+    pinMode(OLED_DC, OUTPUT);
+    pinMode(OLED_CS, OUTPUT);
+    pinMode(OLED_RST, OUTPUT);
+    pinMode(OLED_MOSI, OUTPUT);
+    pinMode(OLED_SCLK, OUTPUT);
+
+    // Reset display
+    Serial.println("Resetting display...");
+    digitalWrite(OLED_RST, HIGH);
+    delay(100);
+    digitalWrite(OLED_RST, LOW);
+    delay(100);
+    digitalWrite(OLED_RST, HIGH);
+    delay(100);
+
     // Initialize display
+    Serial.println("Initializing display...");
     display.begin();
-    Serial.println(F("SSD1351 initialization completed"));
+    delay(100);
     
-    // Simple welcome message
+    // Basic display tests
+    Serial.println("Running display tests...");
     display.fillScreen(BLACK);
+    delay(500);
+    
+    
+    // Draw welcome text
+    Serial.println("Drawing welcome text...");
     display.setTextSize(2);
     display.setTextColor(WHITE);
     display.setCursor(20, 50);
     display.println("TAMAGO");
-    delay(3000);  // Longer delay for stability
-
-    // Setup WiFi after display is initialized
+    delay(2000);
+    
+    // Draw the image
+    Serial.println("Drawing image...");
+    drawImage();
+    delay(1000);
+    
+    // Setup WiFi and MQTT
+    Serial.println("Setting up WiFi...");
     setup_wifi();
+    
+    Serial.println("Setting up MQTT...");
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
-
-    // Clear screen
-    display.fillScreen(BLACK);
+    
+    Serial.println("Setup complete!");
 }
 
 void loop() {
@@ -205,11 +281,8 @@ void loop() {
         reconnect();
     }
 
-    // Mettre à jour l'affichage du Tamagotchi
-    String status = "Faim: " + String(myTamagotchi.hunger) + "\n";
-    status += "Bonheur: " + String(myTamagotchi.happiness) + "\n";
-    status += "Proprete: " + String(myTamagotchi.cleanliness);
-    updateDisplay(status);  // Mise à jour de l'affichage avec les nouvelles valeurs
+    // Update the display with current stats
+    updateDisplay("");
 
     client.loop();
 }
