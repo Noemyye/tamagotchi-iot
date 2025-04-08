@@ -87,9 +87,20 @@ static bool lastButtonState = HIGH;
 
 // Variable pour temporisation
 unsigned long lastTime = 0;
-const long interval = 60000;  // 1 minute en millisecondes
+const long interval = 30000;  // 30 secondes en millisecondes
 
 void updateDisplay() {
+    // Vérifie si c'est GAME OVER
+    if (myTamagotchi.hunger == 0 && myTamagotchi.happiness == 0 && myTamagotchi.cleanliness == 0) {
+        display.fillScreen(BLACK);  // Nettoie l'écran
+        display.setTextSize(2);     // Augmente la taille du texte
+        display.setTextColor(RED);  // Couleur rouge
+        display.setCursor(20, 50);  // Position du texte
+        display.println("GAME OVER");
+        return;  // Arrêter la fonction ici pour ne pas afficher les autres stats
+    }
+
+    // Si ce n'est pas GAME OVER, on affiche les autres stats
     static int lastHunger = -1;
     static int lastHappiness = -1;
     static int lastCleanliness = -1;
@@ -234,6 +245,13 @@ void loop() {
     }
 
     client.loop();
+
+    // Si c'est GAME OVER, on ne fait rien avec les boutons
+    if (myTamagotchi.hunger == 0 && myTamagotchi.happiness == 0 && myTamagotchi.cleanliness == 0) {
+        updateDisplay();  // Afficher "GAME OVER"
+        return;  // Ne pas exécuter le reste du code (comme la gestion des boutons)
+    }
+
     updateDisplay();
 
     // Gestion des 3 boutons physiques avec anti-rebond
