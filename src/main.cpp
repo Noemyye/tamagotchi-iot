@@ -5,6 +5,7 @@
 #include <Adafruit_SSD1351.h>
 #include "Image.h"
 #include <SPI.h>
+#include <algorithm>
 
 // Screen dimensions
 #define SCREEN_WIDTH 128
@@ -65,6 +66,15 @@ struct Tamagotchi {
     void clean() {
         cleanliness = min(100, cleanliness + 10);
     }
+
+    void decreaseStats() {
+        int randomDecrease = random(1, 4); // Aléatoire entre 1 et 3
+
+        // Diminue aléatoirement la faim, l'humeur et la propreté
+        if (randomDecrease == 1) hunger = std::max<long int>((long int)0, (long int)(hunger - random(5, 16)));
+        if (randomDecrease == 2) happiness = std::max<long int>((long int)0, (long int)(happiness - random(5, 16)));
+        if (randomDecrease == 3) cleanliness = std::max<long int>((long int)0, (long int)(cleanliness - random(5, 16)));
+    }
 };
 
 Tamagotchi myTamagotchi = {0, 100, 100};
@@ -75,7 +85,11 @@ PubSubClient client(espClient);
 // Pour gestion du bouton
 static bool lastButtonState = HIGH;
 
-void updateDisplay(String text) {
+// Variable pour temporisation
+unsigned long lastTime = 0;
+const long interval = 60000;  // 1 minute en millisecondes
+
+void updateDisplay() {
     static int lastHunger = -1;
     static int lastHappiness = -1;
     static int lastCleanliness = -1;
@@ -162,7 +176,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     } else if (message == "nettoyer") {
         myTamagotchi.clean();
     }
-    updateDisplay("");
+    updateDisplay();
 }
 
 void reconnect() {
@@ -220,9 +234,9 @@ void loop() {
     }
 
     client.loop();
-    updateDisplay("");
+    updateDisplay();
 
-    // Gestion des 3 boutons physiques
+    // Gestion des 3 boutons physiques avec anti-rebond
     static bool lastFeedButton = HIGH;
     static bool lastPlayButton = HIGH;
     static bool lastCleanButton = HIGH;
@@ -235,7 +249,7 @@ void loop() {
     if (lastFeedButton == HIGH && currentFeedButton == LOW) {
         Serial.println("🔵 Bouton 1 appuyé : Nourrir");
         myTamagotchi.feed();
-        updateDisplay("");
+        updateDisplay();
     }
     lastFeedButton = currentFeedButton;
 
@@ -243,7 +257,7 @@ void loop() {
     if (lastPlayButton == HIGH && currentPlayButton == LOW) {
         Serial.println("🟡 Bouton 2 appuyé : Jouer");
         myTamagotchi.play();
-        updateDisplay("");
+        updateDisplay();
     }
     lastPlayButton = currentPlayButton;
 
@@ -251,7 +265,17 @@ void loop() {
     if (lastCleanButton == HIGH && currentCleanButton == LOW) {
         Serial.println("🟢 Bouton 3 appuyé : Nettoyer");
         myTamagotchi.clean();
-        updateDisplay("");
+        updateDisplay();
     }
     lastCleanButton = currentCleanButton;
+
+    // Gestion du temps toutes les 1 minute
+    unsigned long currentTime = millis();
+    if (currentTime - lastTime >= interval) {
+        lastTime = currentTime;
+
+        // Applique une réduction aléatoire sur la faim, humeur ou propreté
+        myTamagotchi.decreaseStats();
+        updateDisplay();
+    }
 }
