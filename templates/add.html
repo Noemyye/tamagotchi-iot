@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Ajouter un Tamagotchi</title></head>
+<body>
+    <h1>Créer un Tamagotchi</h1>
+    <form method="POST">
+        Nom : <input type="text" name="name" required><br>
+        Personnage : <input type="text" name="character" required><br>
+        <button type="submit">Ajouter</button>
+    </form>
+    <a href="{{ url_for('index') }}">Retour à l'accueil</a>
+</body>
+</html>

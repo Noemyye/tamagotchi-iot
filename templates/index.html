@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamagotchi IoT</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .tamagotchi-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .progress-bar {
+            width: 200px;
+            height: 20px;
+            background-color: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .hunger { background-color: #ff6b6b; }
+        .happiness { background-color: #ffd93d; }
+        .cleanliness { background-color: #4dabf7; }
+        .selection-options {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .selection-options button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4dabf7;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .selection-options button:hover {
+            background-color: #3a8ac0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tamagotchi IoT</h1>
+    <div id="selection-screen" class="tamagotchi-container">
+        <h2>Choisissez votre Tamagotchi</h2>
+        <div class="selection-options">
+            <button onclick="selectTamagotchi('tama1')">Lulu (Dragon)</button>
+            <button onclick="selectTamagotchi('tama2')">Pika (Pikachu)</button>
+            <button onclick="selectTamagotchi('tama3')">Mimi (Chat)</button>
+        </div>
+    </div>
+
+    <div id="tamagotchi-screen" class="tamagotchi-container" style="display: none;">
+        <h2 id="tama-name">Chargement...</h2>
+        <p id="tama-character"></p>
+        
+        <div class="stats">
+            <div class="stat">
+                <h3>Faim</h3>
+                <div class="progress-bar">
+                    <div id="hunger-bar" class="progress hunger" style="width: 100%"></div>
+                </div>
+                <div id="hunger-value" class="stat-value">100%</div>
+            </div>
+            
+            <div class="stat">
+                <h3>Bonheur</h3>
+                <div class="progress-bar">
+                    <div id="happiness-bar" class="progress happiness" style="width: 100%"></div>
+                </div>
+                <div id="happiness-value" class="stat-value">100%</div>
+            </div>
+            
+            <div class="stat">
+                <h3>Propreté</h3>
+                <div class="progress-bar">
+                    <div id="cleanliness-bar" class="progress cleanliness" style="width: 100%"></div>
+                </div>
+                <div id="cleanliness-value" class="stat-value">100%</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let selectedTamaId = null;
+
+        function selectTamagotchi(tamaId) {
+            selectedTamaId = tamaId;
+            document.getElementById('selection-screen').style.display = 'none';
+            document.getElementById('tamagotchi-screen').style.display = 'block';
+            
+            // Fetch initial data
+            fetch(`/api/tamagotchi/${tamaId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        // If tamagotchi doesn't exist yet, it will be created when ESP32 sends data
+                        console.log("Tamagotchi not found, waiting for ESP32 to create it");
+                    } else {
+                        updateDisplay(data);
+                    }
+                })
+                .catch(error => console.error("Error fetching tamagotchi data:", error));
+        }
+
+        function updateDisplay(data) {
+            document.getElementById('tama-name').textContent = data.name;
+            document.getElementById('tama-character').textContent = `Type: ${data.character}`;
+            
+            document.getElementById('hunger-bar').style.width = `${data.hunger}%`;
+            document.getElementById('happiness-bar').style.width = `${data.happiness}%`;
+            document.getElementById('cleanliness-bar').style.width = `${data.cleanliness}%`;
+            
+            document.getElementById('hunger-value').textContent = `${data.hunger}%`;
+            document.getElementById('happiness-value').textContent = `${data.happiness}%`;
+            document.getElementById('cleanliness-value').textContent = `${data.cleanliness}%`;
+        }
+
+        socket.on('tamagotchi_update', function(data) {
+            if (data.id === selectedTamaId) {
+                updateDisplay(data);
+            }
+        });
+    </script>
+</body>
+</html>
