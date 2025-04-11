@@ -11,7 +11,6 @@
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 128
-
 #define OLED_MOSI  23
 #define OLED_SCLK  18
 #define OLED_CS    27
@@ -21,7 +20,6 @@
 #define BUTTON_PLAY_PIN 21
 #define BUTTON_CLEAN_PIN 19
 #define BUTTON_SELECT_PIN 17
-
 #define BLACK    0x0000
 #define RED      0xF800
 #define YELLOW   0xFFE0
@@ -39,9 +37,7 @@ Adafruit_SSD1351 display = Adafruit_SSD1351(
 
 const char* ssid = "iPhonenono";
 const char* password = "nonolagrinta";
-
 const char* serverUrl = "http://172.20.10.2:8080";
-
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 const char* mqtt_topic = "tamagotchi/etat";
@@ -54,7 +50,6 @@ struct Tamagotchi {
     int happiness;
     int cleanliness;
     bool isAlive;
-
     void feed() {
         Serial.print("pute");
         if (isAlive) {
@@ -113,7 +108,7 @@ const char* selectedCharacter = tamagotchiList[0].character;
 
 Tamagotchi myTamagotchi = {0, 100, 100, true};
 
-// Game state
+// état du jeu
 bool gameOver = false;
 unsigned long lastActionTime = 0;
 const unsigned long GAME_OVER_TIMEOUT = 300000; 
@@ -141,7 +136,6 @@ void sendData() {
   int maxRetries = 3;
   int retryCount = 0;
   int httpResponseCode = -1;
-  
   while (retryCount < maxRetries && httpResponseCode < 0) {
     Serial.print("Attempting to connect to server (attempt ");
     Serial.print(retryCount + 1);
@@ -151,7 +145,7 @@ void sendData() {
     
     http.begin(String(serverUrl) + "/api/tamagotchi/update");
     http.addHeader("Content-Type", "application/json");
-    http.setTimeout(10000); // 10 second timeout
+    http.setTimeout(10000); // timeout de 10 secondes
 
     StaticJsonDocument<200> doc;
     doc["id"] = selectedId;
@@ -167,7 +161,6 @@ void sendData() {
     
     Serial.print("Sending data: ");
     Serial.println(jsonString);
-    
     httpResponseCode = http.POST(jsonString);
     
     if (httpResponseCode > 0) {
@@ -179,22 +172,19 @@ void sendData() {
       retryCount++;
       delay(2000); 
     }
-    
     http.end();
   }
-  
+
   if (httpResponseCode < 0) {
     Serial.println("Failed to send data after multiple attempts");
   }
 }
-
 
 void fetchData() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected.");
     return;
   }
-
   HTTPClient http;
   http.begin(String(serverUrl) + "/api/tamagotchi/" + selectedId);  // adapte selon ton endpoint réel
   int httpResponseCode = http.GET();
@@ -203,7 +193,6 @@ void fetchData() {
     String payload = http.getString();
     Serial.println("Réponse du serveur :");
     Serial.println(payload);
-
     StaticJsonDocument<200> doc;
     DeserializationError error = deserializeJson(doc, payload);
     if (!error) {
@@ -219,10 +208,8 @@ void fetchData() {
     Serial.print("Erreur GET : ");
     Serial.println(httpResponseCode);
   }
-
   http.end();
 }
-
 
 static bool lastButtonState = HIGH;
 
@@ -258,20 +245,17 @@ void displaySelectionScreen(int index) {
 }
 
 void updateDisplay() {
-
     if (!myTamagotchi.isAlive) {
         display.fillScreen(BLACK); 
         display.setTextSize(2);  
         display.setTextColor(RED);  
         display.setCursor(20, 30); 
-        display.println("GAME OVER");
-        
+        display.println("GAME OVER");    
         display.setTextSize(1);
         display.setTextColor(WHITE);
         display.setCursor(10, 60);
         display.print(selectedName);
-        display.println(" has died!");
-        
+        display.println(" has died!");     
         display.setCursor(10, 80);
         display.println("Press SELECT to");
         display.println("choose another");
@@ -293,24 +277,19 @@ void updateDisplay() {
     lastHunger = myTamagotchi.hunger;
     lastHappiness = myTamagotchi.happiness;
     lastCleanliness = myTamagotchi.cleanliness;
-
     display.fillRect(14, 4, 25, 7, BLACK);
     display.fillRect(58, 4, 25, 7, BLACK);
     display.fillRect(101, 4, 25, 7, BLACK);
-
     display.setTextSize(1);
     display.setTextWrap(false);
-
     display.setTextColor(RED);
     display.setCursor(15, 4);
     display.print(myTamagotchi.hunger);
     display.print("%");
-
     display.setTextColor(YELLOW);
     display.setCursor(59, 4);
     display.print(myTamagotchi.happiness);
     display.print("%");
-
     display.setTextColor(CYAN);
     display.setCursor(102, 4);
     display.print(myTamagotchi.cleanliness);
@@ -327,7 +306,6 @@ void drawImage() {
         Serial.println("Erreur dimensions image");
         return;
     }
-
     display.fillScreen(BLACK);
     delay(50);
     display.drawRGBBitmap(0, 0, Image.data, Image.width, Image.height);
@@ -336,7 +314,6 @@ void drawImage() {
 void setup_wifi() {
     Serial.print("Connexion au WiFi...");
     WiFi.begin(ssid, password);
-    
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20) { 
         delay(500);
@@ -354,10 +331,9 @@ void setup_wifi() {
     }
 }
 
-
 void reconnect() {
     int attempts = 0;
-    while (!client.connected() && attempts < 3) { // Limit reconnection attempts
+    while (!client.connected() && attempts < 3) { // Limite de reconnexions
         Serial.print("Attempting MQTT connection...");
         String clientId = "ESP32_" + String(random(1000, 9999));
         if (client.connect(clientId.c_str())) {
@@ -375,11 +351,9 @@ void reconnect() {
     }
 }
 
-
 void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print("MQTT Message received on topic: ");
     Serial.println(topic);
-    
     String message;
     for (int i = 0; i < length; i++) {
         message += (char)payload[i];
@@ -407,7 +381,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     updateDisplay();
 }
 
-
 void checkGameOver() {
     if (myTamagotchi.hunger == 0 && myTamagotchi.happiness == 0 && myTamagotchi.cleanliness == 0) {
         myTamagotchi.isAlive = false;
@@ -419,7 +392,6 @@ void checkGameOver() {
 
 void setup() {
     Serial.begin(115200);
-
     pinMode(OLED_DC, OUTPUT);
     pinMode(OLED_CS, OUTPUT);
     pinMode(OLED_RST, OUTPUT);
@@ -429,15 +401,12 @@ void setup() {
     pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
     pinMode(BUTTON_CLEAN_PIN, INPUT_PULLUP);
     pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
-
     digitalWrite(OLED_RST, HIGH); delay(100);
     digitalWrite(OLED_RST, LOW); delay(100);
     digitalWrite(OLED_RST, HIGH); delay(100);
-
     display.begin();
     display.fillScreen(BLACK);
     delay(500);
-
     display.setTextSize(2);
     display.setTextColor(WHITE);
     display.setCursor(20, 50);
@@ -450,7 +419,6 @@ void setup() {
         bool upPressed = digitalRead(BUTTON_FEED_PIN) == LOW;
         bool downPressed = digitalRead(BUTTON_PLAY_PIN) == LOW;
         bool selectPressed = digitalRead(BUTTON_CLEAN_PIN) == LOW;
-
         if (upPressed) {
             selectedIndex = (selectedIndex - 1 + tamagotchiCount) % tamagotchiCount;
             delay(300); 
@@ -464,22 +432,18 @@ void setup() {
             selectedCharacter = tamagotchiList[selectedIndex].character;
             lastActionTime = millis();
             delay(500);
-
             updateDisplay();
         }
         
         delay(50);
     }
-
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
-
     drawImage();
     updateDisplay();
-    delay(1000);
-    
-    // Send initial data to server
+    delay(500);
+    // envoyer les données initiales au serveur
     sendData();
 }
 
@@ -487,14 +451,12 @@ void loop() {
     if (!client.connected()) {
         reconnect();
     }
-
     client.loop();
 
     // Vérifier l'état des boutons pour nourrir, jouer, nettoyer
     static bool lastFeedButton = HIGH;
     static bool lastPlayButton = HIGH;
     static bool lastCleanButton = HIGH;
-
     bool feedButtonState = digitalRead(BUTTON_FEED_PIN) == LOW;
     bool playButtonState = digitalRead(BUTTON_PLAY_PIN) == LOW;
     bool cleanButtonState = digitalRead(BUTTON_CLEAN_PIN) == LOW;
@@ -540,10 +502,8 @@ void loop() {
         }
         return;  // Ne pas exécuter le reste du code si le jeu est terminé
     }
-
     updateDisplay(); 
     delay(100);
-
     unsigned long currentTime = millis();
     if (currentTime - lastTime >= interval) {
         lastTime = currentTime;
@@ -553,7 +513,6 @@ void loop() {
         sendData();
         updateDisplay();
     }
-    
     checkGameOver();
     sendData();
     fetchData();
