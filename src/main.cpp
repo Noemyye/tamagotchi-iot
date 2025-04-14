@@ -351,13 +351,7 @@ void reconnect() {
     }
 }
 
-unsigned long lastCallbackTime = 0;
-const unsigned long callbackCooldown = 3000;
-
 void callback(char* topic, byte* payload, unsigned int length) {
-    unsigned long now = millis();
-    if (now - lastCallbackTime < callbackCooldown) return;
-    lastCallbackTime = now;
     Serial.print("MQTT Message received on topic: ");
     Serial.println(topic);
     String message;
@@ -452,13 +446,14 @@ void setup() {
     // envoyer les données initiales au serveur
     sendData();
 }
+
 void loop() {
     if (!client.connected()) {
         reconnect();
     }
     client.loop();
 
-    // Gérer les boutons
+    // Vérifier l'état des boutons pour nourrir, jouer, nettoyer
     static bool lastFeedButton = HIGH;
     static bool lastPlayButton = HIGH;
     static bool lastCleanButton = HIGH;
@@ -470,7 +465,7 @@ void loop() {
         myTamagotchi.feed();
         lastActionTime = millis();
         lastFeedButton = true;
-        sendData();  // une seule fois
+        sendData();  // Envoie les données après l'action
     }
     if (!feedButtonState) lastFeedButton = false;
 
@@ -478,7 +473,7 @@ void loop() {
         myTamagotchi.play();
         lastActionTime = millis();
         lastPlayButton = true;
-        sendData();  // une seule fois
+        sendData();  // Envoie les données après l'action
     }
     if (!playButtonState) lastPlayButton = false;
 
@@ -486,39 +481,40 @@ void loop() {
         myTamagotchi.clean();
         lastActionTime = millis();
         lastCleanButton = true;
-        sendData();  // une seule fois
+        sendData();  // Envoie les données après l'action
     }
     if (!cleanButtonState) lastCleanButton = false;
 
-    // Game Over
+    // Vérifier la condition "Game Over"
     if (!myTamagotchi.isAlive) {
-        updateDisplay();
+        updateDisplay();  // Afficher "GAME OVER"
+        // Vérifie si SELECT est appuyé pour réinitialiser le jeu
         if (digitalRead(BUTTON_SELECT_PIN) == LOW) {
+            // Réinitialiser le jeu
             gameOver = false;
             selected = false;
             myTamagotchi.hunger = 0;
             myTamagotchi.happiness = 100;
             myTamagotchi.cleanliness = 100;
             myTamagotchi.isAlive = true;
-            sendData();  // envoyer une seule fois
+            sendData();  // Envoie les données après la réinitialisation
             delay(300);
         }
-        return;
+        return;  // Ne pas exécuter le reste du code si le jeu est terminé
     }
-
-    updateDisplay();
-
-    // ✅ Exécuter périodiquement (toutes les 5 sec ici)
+    updateDisplay(); 
+    delay(100);
     unsigned long currentTime = millis();
-    static unsigned long lastPeriodicUpdate = 0;
-    if (currentTime - lastPeriodicUpdate >= 5000) {
-        lastPeriodicUpdate = currentTime;
+    if (currentTime - lastTime >= interval) {
+        lastTime = currentTime;
 
+        // Applique une réduction aléatoire sur la faim, humeur ou propreté
         myTamagotchi.decreaseStats();
-        sendData();   // périodique
-        fetchData();  // périodique
+        sendData();
         updateDisplay();
     }
-
     checkGameOver();
+    sendData();
+    fetchData();
+    updateDisplay();
 }
