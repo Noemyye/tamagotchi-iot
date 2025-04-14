@@ -466,18 +466,22 @@ void setup() {
             selectedCharacter = tamagotchiList[selectedIndex].character;
             lastActionTime = millis();
             delay(500);
+
             updateDisplay();
         }
         
         delay(50);
     }
+
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
+
     drawImage();
     updateDisplay();
-    delay(500);
-    // envoyer les données initiales au serveur
+    delay(1000);
+    
+    // Send initial data to server
     sendData();
 }
 
@@ -485,12 +489,14 @@ void loop() {
     if (!client.connected()) {
         reconnect();
     }
+
     client.loop();
 
     // Vérifier l'état des boutons pour nourrir, jouer, nettoyer
     static bool lastFeedButton = HIGH;
     static bool lastPlayButton = HIGH;
     static bool lastCleanButton = HIGH;
+
     bool feedButtonState = digitalRead(BUTTON_FEED_PIN) == LOW;
     bool playButtonState = digitalRead(BUTTON_PLAY_PIN) == LOW;
     bool cleanButtonState = digitalRead(BUTTON_CLEAN_PIN) == LOW;
@@ -534,8 +540,10 @@ void loop() {
         }
         return;  // Ne pas exécuter le reste du code si le jeu est terminé
     }
+
     updateDisplay(); 
     delay(100);
+
     unsigned long currentTime = millis();
     if (currentTime - lastTime >= interval) {
         lastTime = currentTime;
@@ -557,6 +565,7 @@ void loop() {
         drawImage();
         updateDisplay();
     }
+    
     checkGameOver();
     sendData();
     fetchData();
