@@ -389,62 +389,42 @@ void checkGameOver() {
     }
 }
 
-
-void setup() {
-    Serial.begin(115200);
-    pinMode(OLED_DC, OUTPUT);
-    pinMode(OLED_CS, OUTPUT);
-    pinMode(OLED_RST, OUTPUT);
-    pinMode(OLED_MOSI, OUTPUT);
-    pinMode(OLED_SCLK, OUTPUT);
-    pinMode(BUTTON_FEED_PIN, INPUT_PULLUP);
-    pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
-    pinMode(BUTTON_CLEAN_PIN, INPUT_PULLUP);
-    pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
-    digitalWrite(OLED_RST, HIGH); delay(100);
-    digitalWrite(OLED_RST, LOW); delay(100);
-    digitalWrite(OLED_RST, HIGH); delay(100);
-    display.begin();
-    display.fillScreen(BLACK);
-    delay(500);
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(20, 50);
-    display.println("TAMAGO");
-    delay(2000);
-
+void handleTamagotchiSelection() {
     while (!selected) {
         displaySelectionScreen(selectedIndex);
 
         bool upPressed = digitalRead(BUTTON_FEED_PIN) == LOW;
         bool downPressed = digitalRead(BUTTON_PLAY_PIN) == LOW;
         bool selectPressed = digitalRead(BUTTON_CLEAN_PIN) == LOW;
+
         if (upPressed) {
             selectedIndex = (selectedIndex - 1 + tamagotchiCount) % tamagotchiCount;
-            delay(300); 
-        } else if (downPressed) {
+            delay(300);
+        }
+        if (downPressed) {
             selectedIndex = (selectedIndex + 1) % tamagotchiCount;
             delay(300);
-        } else if (selectPressed) {
+        }
+        if (selectPressed) {
             selected = true;
             selectedId = tamagotchiList[selectedIndex].id;
             selectedName = tamagotchiList[selectedIndex].name;
             selectedCharacter = tamagotchiList[selectedIndex].character;
-            lastActionTime = millis();
-            delay(500);
-            updateDisplay();
+            fetchData();
         }
-        
-        delay(50);
     }
+}
+
+void setup() {
+    handleTamagotchiSelection();
+
+    drawImage();
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
-    drawImage();
+    reconnect();
     updateDisplay();
-    delay(500);
-    // envoyer les données initiales au serveur
-    sendData();
+    lastActionTime = millis();
 }
 
 void loop() {
@@ -486,7 +466,9 @@ void loop() {
         selectedIndex = 0;
         myTamagotchi = {0, 100, 100, true};
         gameOver = false;
+
         handleTamagotchiSelection();
+
         drawImage();
         updateDisplay();
     }
