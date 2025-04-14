@@ -37,7 +37,7 @@ Adafruit_SSD1351 display = Adafruit_SSD1351(
 
 const char* ssid = "iPhonenono";
 const char* password = "nonolagrinta";
-const char* serverUrl = " http://172.20.10.7:8080";
+const char* serverUrl = "http://172.20.10.7:8080";
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 const char* mqtt_topic = "tamagotchi/etat";
