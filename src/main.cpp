@@ -40,7 +40,7 @@ Adafruit_SSD1351 display = Adafruit_SSD1351(
 const char* ssid = "iPhonenono";
 const char* password = "nonolagrinta";
 
-const char* serverUrl = "http://172.20.10.2:8080";
+const char* serverUrl = "http://172.20.10.7:8080";
 
 const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
@@ -356,21 +356,24 @@ void setup_wifi() {
 
 
 void reconnect() {
-    int attempts = 0;
-    while (!client.connected() && attempts < 3) { // Limit reconnection attempts
+    static unsigned long lastReconnectAttempt = 0;
+    unsigned long currentMillis = millis();
+    
+    // Only try to reconnect every 5 seconds
+    if (currentMillis - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = currentMillis;
+        
         Serial.print("Attempting MQTT connection...");
         String clientId = "ESP32_" + String(random(1000, 9999));
+        
         if (client.connect(clientId.c_str())) {
             Serial.println("connected");
             client.subscribe(mqtt_topic);
             client.publish("tamagotchi/etat", "ESP32 connected!");
-            Serial.println("Subscribed to topic: " + String(mqtt_topic));
         } else {
             Serial.print("failed, rc=");
             Serial.print(client.state());
-            Serial.println(" retrying in 5 seconds");
-            attempts++;
-            delay(5000);
+            Serial.println(" try again in 5 seconds");
         }
     }
 }
@@ -485,14 +488,16 @@ void setup() {
 void loop() {
     if (!client.connected()) {
         reconnect();
+    } else {
+        client.loop();
     }
-
-    client.loop();
 
     // Vérifier l'état des boutons pour nourrir, jouer, nettoyer
     static bool lastFeedButton = HIGH;
     static bool lastPlayButton = HIGH;
     static bool lastCleanButton = HIGH;
+    static unsigned long lastDataSendTime = 0;
+    static unsigned long lastDataFetchTime = 0;
 
     bool feedButtonState = digitalRead(BUTTON_FEED_PIN) == LOW;
     bool playButtonState = digitalRead(BUTTON_PLAY_PIN) == LOW;
@@ -502,7 +507,7 @@ void loop() {
         myTamagotchi.feed();
         lastActionTime = millis();
         lastFeedButton = true;
-        sendData();  // Envoie les données après l'action
+        sendData();
     }
     if (!feedButtonState) lastFeedButton = false;
 
@@ -510,7 +515,7 @@ void loop() {
         myTamagotchi.play();
         lastActionTime = millis();
         lastPlayButton = true;
-        sendData();  // Envoie les données après l'action
+        sendData();
     }
     if (!playButtonState) lastPlayButton = false;
 
@@ -518,43 +523,45 @@ void loop() {
         myTamagotchi.clean();
         lastActionTime = millis();
         lastCleanButton = true;
-        sendData();  // Envoie les données après l'action
+        sendData();
     }
     if (!cleanButtonState) lastCleanButton = false;
 
     // Vérifier la condition "Game Over"
     if (!myTamagotchi.isAlive) {
-        updateDisplay();  // Afficher "GAME OVER"
-        // Vérifie si SELECT est appuyé pour réinitialiser le jeu
+        updateDisplay();
         if (digitalRead(BUTTON_SELECT_PIN) == LOW) {
-            // Réinitialiser le jeu
             gameOver = false;
             selected = false;
             myTamagotchi.hunger = 0;
             myTamagotchi.happiness = 100;
             myTamagotchi.cleanliness = 100;
             myTamagotchi.isAlive = true;
-            sendData();  // Envoie les données après la réinitialisation
+            sendData();
             delay(300);
         }
-        return;  // Ne pas exécuter le reste du code si le jeu est terminé
+        return;
     }
 
-    updateDisplay(); 
+    updateDisplay();
     delay(100);
 
     unsigned long currentTime = millis();
-    if (currentTime - lastTime >= interval) {
-        lastTime = currentTime;
-
-        // Applique une réduction aléatoire sur la faim, humeur ou propreté
+    
+    // Only send data every 30 seconds
+    if (currentTime - lastDataSendTime >= 30000) {
+        lastDataSendTime = currentTime;
         myTamagotchi.decreaseStats();
         sendData();
         updateDisplay();
     }
     
+    // Only fetch data every 60 seconds
+    if (currentTime - lastDataFetchTime >= 60000) {
+        lastDataFetchTime = currentTime;
+        fetchData();
+        updateDisplay();
+    }
+    
     checkGameOver();
-    sendData();
-    fetchData();
-    updateDisplay();
 }
