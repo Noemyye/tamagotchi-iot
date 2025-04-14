@@ -389,87 +389,132 @@ void checkGameOver() {
     }
 }
 
-void handleTamagotchiSelection() {
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(OLED_DC, OUTPUT);
+    pinMode(OLED_CS, OUTPUT);
+    pinMode(OLED_RST, OUTPUT);
+    pinMode(OLED_MOSI, OUTPUT);
+    pinMode(OLED_SCLK, OUTPUT);
+    pinMode(BUTTON_FEED_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_CLEAN_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
+    digitalWrite(OLED_RST, HIGH); delay(100);
+    digitalWrite(OLED_RST, LOW); delay(100);
+    digitalWrite(OLED_RST, HIGH); delay(100);
+    display.begin();
+    display.fillScreen(BLACK);
+    delay(500);
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(20, 50);
+    display.println("TAMAGO");
+    delay(2000);
+
     while (!selected) {
         displaySelectionScreen(selectedIndex);
 
         bool upPressed = digitalRead(BUTTON_FEED_PIN) == LOW;
         bool downPressed = digitalRead(BUTTON_PLAY_PIN) == LOW;
         bool selectPressed = digitalRead(BUTTON_CLEAN_PIN) == LOW;
-
         if (upPressed) {
             selectedIndex = (selectedIndex - 1 + tamagotchiCount) % tamagotchiCount;
-            delay(300);
-        }
-        if (downPressed) {
+            delay(300); 
+        } else if (downPressed) {
             selectedIndex = (selectedIndex + 1) % tamagotchiCount;
             delay(300);
-        }
-        if (selectPressed) {
+        } else if (selectPressed) {
             selected = true;
             selectedId = tamagotchiList[selectedIndex].id;
             selectedName = tamagotchiList[selectedIndex].name;
             selectedCharacter = tamagotchiList[selectedIndex].character;
-            fetchData();
+            lastActionTime = millis();
+            delay(500);
+            updateDisplay();
         }
+        
+        delay(50);
     }
-}
-
-void setup() {
-    handleTamagotchiSelection();
-
-    drawImage();
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
-    reconnect();
+    drawImage();
     updateDisplay();
-    lastActionTime = millis();
+    delay(500);
+    // envoyer les données initiales au serveur
+    sendData();
 }
 
 void loop() {
-    if (!client.connected()) reconnect();
+    if (!client.connected()) {
+        reconnect();
+    }
     client.loop();
 
-    unsigned long now = millis();
-    if (now - lastTime > interval) {
-        lastTime = now;
-        myTamagotchi.decreaseStats();
-        updateDisplay();
-        sendData();
-        checkGameOver();
-    }
+    // Vérifier l'état des boutons pour nourrir, jouer, nettoyer
+    static bool lastFeedButton = HIGH;
+    static bool lastPlayButton = HIGH;
+    static bool lastCleanButton = HIGH;
+    bool feedButtonState = digitalRead(BUTTON_FEED_PIN) == LOW;
+    bool playButtonState = digitalRead(BUTTON_PLAY_PIN) == LOW;
+    bool cleanButtonState = digitalRead(BUTTON_CLEAN_PIN) == LOW;
 
-    if (digitalRead(BUTTON_FEED_PIN) == LOW) {
+    if (feedButtonState && !lastFeedButton) {
         myTamagotchi.feed();
-        updateDisplay();
-        sendData();
-        delay(300);
+        lastActionTime = millis();
+        lastFeedButton = true;
+        sendData();  // Envoie les données après l'action
     }
+    if (!feedButtonState) lastFeedButton = false;
 
-    if (digitalRead(BUTTON_PLAY_PIN) == LOW) {
+    if (playButtonState && !lastPlayButton) {
         myTamagotchi.play();
-        updateDisplay();
-        sendData();
-        delay(300);
+        lastActionTime = millis();
+        lastPlayButton = true;
+        sendData();  // Envoie les données après l'action
     }
+    if (!playButtonState) lastPlayButton = false;
 
-    if (digitalRead(BUTTON_CLEAN_PIN) == LOW) {
+    if (cleanButtonState && !lastCleanButton) {
         myTamagotchi.clean();
-        updateDisplay();
+        lastActionTime = millis();
+        lastCleanButton = true;
+        sendData();  // Envoie les données après l'action
+    }
+    if (!cleanButtonState) lastCleanButton = false;
+
+    // Vérifier la condition "Game Over"
+    if (!myTamagotchi.isAlive) {
+        updateDisplay();  // Afficher "GAME OVER"
+        // Vérifie si SELECT est appuyé pour réinitialiser le jeu
+        if (digitalRead(BUTTON_SELECT_PIN) == LOW) {
+            // Réinitialiser le jeu
+            gameOver = false;
+            selected = false;
+            myTamagotchi.hunger = 0;
+            myTamagotchi.happiness = 100;
+            myTamagotchi.cleanliness = 100;
+            myTamagotchi.isAlive = true;
+            sendData();  // Envoie les données après la réinitialisation
+            delay(300);
+        }
+        return;  // Ne pas exécuter le reste du code si le jeu est terminé
+    }
+    updateDisplay(); 
+    delay(100);
+    unsigned long currentTime = millis();
+    if (currentTime - lastTime >= interval) {
+        lastTime = currentTime;
+
+        // Applique une réduction aléatoire sur la faim, humeur ou propreté
+        myTamagotchi.decreaseStats();
         sendData();
-        delay(300);
-    }
-
-    if (!myTamagotchi.isAlive && digitalRead(BUTTON_SELECT_PIN) == LOW) {
-        selected = false;
-        selectedIndex = 0;
-        myTamagotchi = {0, 100, 100, true};
-        gameOver = false;
-
-        handleTamagotchiSelection();
-
-        drawImage();
         updateDisplay();
     }
-}
+    checkGameOver();
+    sendData();
+    fetchData();
+    updateDisplay();
+}  
